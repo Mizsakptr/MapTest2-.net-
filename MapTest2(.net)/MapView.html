@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" /> <!-- ez kell !!-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bing Maps Example</title>
+    <script type='text/javascript'
+        src='https://www.bing.com/api/maps/mapcontrol?key=bQTvOjfuXEF9XuThrLr1~xZeJMdJ3_eSoG1xxaDdqXw~As02h3sJ1CQtSKZfFO0Pcalz2D-5v45zmE-v8yW_HbG2y0oH-q2g0BvpaYqDQzia'></script>
+    <!-- https://www.bingmapsportal.com/Application# WINDOWS APPLICATION -->
+    <style>
+        #map {
+            height: 480px;
+            width: 470px;
+        }
+    </style>
+    <div id="map"></div>
+</head>
+
+<body>
+
+    <script type='text/javascript' src='https://www.bing.com/api/maps/mapcontrol?callback=loadMapScenario' async defer></script>
+
+    <p1>Debug text:</p1>
+    <div id="data-container"></div>
+    <div id="json"></div>
+    <div id="text"></div>
+
+
+
+    <script>
+        var map;
+        var sensors;
+        var currentCoords;
+        var xhrmap = new XMLHttpRequest();
+        var xhrcoords = new XMLHttpRequest();
+
+        function loadMapScenario() {
+
+
+            // Térkép létrehozása a fejlesztői kulccsal
+            map = new Microsoft.Maps.Map(document.getElementById('map'), {
+                credentials: 'Ah7QEmmuSZr-bQTvOjfuXEF9XuThrLr1~xZeJMdJ3_eSoG1xxaDdqXw~As02h3sJ1CQtSKZfFO0Pcalz2D-5v45zmE-v8yW_HbG2y0oH-q2g0BvpaYqDQzia',
+                center: new Microsoft.Maps.Location(47.543222, 21.641693),
+                zoom: 16,
+                showDashboard: false, // Vezérlőpanel elrejtése
+                //showScalebar: false,  // Mértékmérő elrejtése
+                showMapTypeSelector: false // Térképtípus választó elrejtése
+                //disableScrollWheelZoom: true // Görgetés alapú nagyítás/zoom letiltása
+                
+            });
+
+
+
+            // AJAX hívás a WinForms webszerverhez
+
+            xhrmap.open('GET', 'http://localhost:8080/?timestamp=' + Date.now(), true);
+            xhrmap.send();
+
+            xhrmap.onreadystatechange = function () {
+                if (xhrmap.readyState === XMLHttpRequest.DONE) {
+                    if (xhrmap.status === 200) {
+
+                        sensors = JSON.parse(xhrmap.responseText);
+
+                    } else {
+
+
+                    }
+
+                }
+
+            };
+            //Bing térkép alakzatmodul
+            Microsoft.Maps.loadModule(['Microsoft.Maps.SpatialMath', 'Microsoft.Maps.Contour'], function () {
+                var center = map.getCenter();
+                for (let i = 0; i < sensors.length; i++) {
+                    var color;
+                    switch (sensors[i].Item3) {
+                        case 1:
+                            color = 'rgba(0,255,0,0.5)';
+                            break;
+                        case 2:                          
+                            color = 'rgba(255,255,51,0.5)';
+                            break;
+                        case 3:
+                            color = 'rgba(255,0,0,0.5)'
+                             break;
+                        default:
+                            console.log("Ismeretlen szín");
+                        
+                    }
+                    var circle = createCircle(new Microsoft.Maps.Location(sensors[i].Item1, sensors[i].Item2), 0.1, color);
+                    var layer = new Microsoft.Maps.ContourLayer([circle], {
+                        colorCallback: function (val) {
+                            return val;
+                        },
+                        polygonOptions: {
+                            strokeThickness: 0
+                        }
+                    });
+                    map.layers.insert(layer);
+                    
+                }
+            });
+        }
+
+        //setInterval(loadMapScenario, 1000);
+
+        function loadcoordinates() {            
+
+
+            xhrcoords.onreadystatechange = function () {
+                if (xhrcoords.readyState === XMLHttpRequest.DONE) {
+                    if (xhrcoords.status === 200) {
+
+                        currentCoords = JSON.parse(xhrcoords.responseText);  
+                        
+                            if(currentCoords == null){
+                                document.getElementById("json").innerHTML = "Ennek a működéséhez szükség van az 'A helyhez való hozzáférés engedélyezése az alkalmazások számára' engedélyhez. Valamiért a helyadatok bekapcsolása után csak a számítógép újraindításakor oldódik meg a probléma"; 
+                            }
+
+                            else{
+                                document.getElementById("json").innerHTML = "---"; 
+                            }
+                                           
+
+                    }
+
+                    else{
+                               
+                    }
+                }
+            };
+            //a böngi gyorsítótárazik, ez a probléma
+            xhrcoords.open('GET', 'http://localhost:8081/?timestamp=' + Date.now(), true);
+            xhrcoords.send();
+
+            createPushPin();               
+
+        }
+
+
+        function createPushPin(){
+            var pushpin = new Microsoft.Maps.Pushpin(new Microsoft.Maps.Location(currentCoords.Item1, currentCoords.Item2), {
+                title: 'Itt vagyok',
+                subTitle: 'lorem ipsum'
+                
+            });
+            try {
+                map.entities.pop(pushpin);                
+            } catch (error) {
+                document.getElementById("json").innerHTML = error;
+            }
+            map.entities.push(pushpin);
+
+            map.setView({ center: new Microsoft.Maps.Location(currentCoords.Item1, currentCoords.Item2), zoom: 19 });
+        }
+
+        //setInterval(loadcoordinates, 1000);
+
+        //loadcoordinates();
+
+        function createCircle(center, radius, color) {
+            //Egy 36-szög ("kör"), pontjainak számolása
+            var locs = Microsoft.Maps.SpatialMath.getRegularPolygon(center, radius, 36, Microsoft.Maps.SpatialMath.DistanceUnits.Miles);
+            return new Microsoft.Maps.ContourLine(locs, color);
+        }
+
+        //winformsból jött
+         function toUser(value) {
+
+             //loadcoordinates();
+            let lefutoSzamlalo = 0;
+
+            const idozito = setInterval(function () {
+            loadcoordinates();
+
+            lefutoSzamlalo++;
+
+            if (lefutoSzamlalo === 1) {
+                
+                clearInterval(idozito);
+            }
+            }, 5000); 
+
+            
+         //document.getElementById("json").innerHTML = error;  
+
+         }
+        
+
+    </script>
+</body>
+
+</html>
